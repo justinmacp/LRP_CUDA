@@ -3,7 +3,7 @@
 #include "cudnn.h"
 
 __global__ void forward_pass(float *pInputs, float *pOutputs) {
-	
+	int Inx = blockIdx.x, Iny = blockIdx.y, 
 	}
 
 int lrp() {

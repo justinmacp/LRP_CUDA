@@ -8,7 +8,7 @@ int main(int argc, char** argv) {
 	int sum_lrp = 0;
 	int i, res;
 
-	cudaSetdevice(0);
+	cudaSetDevice(0);
 
 	for(i = 0; i<nTest; i++){
 		printf("--------- Iter: %d -----------\n", i);
