@@ -1,5 +1,5 @@
 # CUDA Implementation of the LRP
-In this repository I attempt to implement the Layerwise Relevance Propagation (LRP) algorithm using CUDA. This implementation will allow for batching and thus be more parallelizable than the original implementation.
+In this repository I attempt to implement the Layerwise Relevance Propagation (LRP) algorithm using CUDA. This implementation will allow for batching and thus be more parallelizable than the original implementation. The code will be optimized to the TITAN RTX architecture.
 
 ## Relevant System Information
 * OS: Linux

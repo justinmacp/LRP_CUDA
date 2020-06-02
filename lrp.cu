@@ -2,15 +2,14 @@
 #include <math.h>
 
 // function to convolve the elements of two arrays
-__global__ void conv(float *out, float *in, float *kernel, int width, int height)
-{
-	for (int m = 1; m < width - 1; m++) {
-		for (int n = 1; n < height - 1; n++){
-			for (int u = 0; u < 3; u++){
-				for (int v = 0; v < 3; v++) {
-					out[(m) + (n) * width] += in[(m - 1 + u) + (n - 1 + v) * width] * kernel[u + v * 3];
-				}
-			}
+__global__ void conv(float *out, float *in, float *kernel, int width, int height, int infeat, int outfeat) {
+	int x = threadIdx.x;
+	int y = threadIdx.y;
+	int inf = threadIdx.z;
+	int outf = blockIdx.x;
+	for (int u = 0; u < 3; u++){
+		for (int v = 0; v < 3; v++) {
+			out[x + y * width + outf * width * height] += in[(x - 1 + u) + (y - 1 + v) * width + inf * width * height] * kernel[u + v * 3 + inf * 9 + outf * 9 * infeat];
 		}
 	}					
 }
@@ -18,6 +17,10 @@ __global__ void conv(float *out, float *in, float *kernel, int width, int height
 int main(void) {
 	int N = 5;
 	int M = 5;
+	int infeat = 2;
+	int outfeat = 2;
+	int kernelh = 3;
+	int kernelw = 3;
 
 	float *x;
 	float *y;
@@ -25,21 +28,24 @@ int main(void) {
 
 	// initialize x and y arrays on the host
 	// Allocate Unified Memory – accessible from CPU or GPU
-	cudaMallocManaged(&x, N*M*sizeof(float));
-	cudaMallocManaged(&y, N*M*sizeof(float));
+	cudaMallocManaged(&x, N*M*infeat*sizeof(float));
+	cudaMallocManaged(&y, N*M*infeat*sizeof(float));
 	cudaMallocManaged(&kernel, 9*sizeof(float));
 
-	for (int i = 0; i < N * M; i++) {
+	for (int i = 0; i < infeat * N * M; i++) {
 		x[i] = 1.0f;
-		y[i] = 0.0f;
 	}
 
-	for (int i = 0; i < 9; i++) {
+	for (int i = 0; i < outfeat * N * M; i++) {
+		x[i] = 1.0f;
+	}
+
+	for (int i = 0; i < infeat * outfeat * kernelw * kernelh; i++) {
 		kernel[i] = 1.0f;
 	}
 
 	// Run kernel on 1M elements on the CPU
-	conv<<<1, 1>>>(y, x, kernel, N, M);
+	conv<<<outfeat, dim3(N, M, infeat)>>>(y, x, kernel, N, M, infeat, outfeat);
 
 	cudaDeviceSynchronize();
 
@@ -47,13 +53,17 @@ int main(void) {
 	float maxError = 0.0f;
 	for (int i = 1; i < N - 1; i++) {
 		for (int j = 1; j < M - 1; j++) {
-			maxError = fmax(maxError, fabs(y[i + j * N]-9.0f));
+			for (int o = 0; o < outfeat; o++) {
+				maxError = fmax(maxError, fabs(y[i + j * N + o * N * M]-18.0f));
+			}
 		}
 	}
 	std::cout << "Max error: " << maxError << std::endl;
-	for (int i = 0; i < N * M; i++) {
+
+	for (int i = 0; i < N * M * outfeat; i++) {
 		std::cout << y[i] << std::endl;
 	}
+
 
 	// Free memory
 	cudaFree(x);
