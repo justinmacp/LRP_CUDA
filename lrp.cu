@@ -1,51 +1,57 @@
 #include <iostream>
 #include <math.h>
 
+using namespace std;
+
+
 // function to convolve the elements of two arrays
 __global__ void conv(float *out, float *in, float *kernel, int width, int height, int infeat, int outfeat) {
+	int outf = blockIdx.x;
 	int x = threadIdx.x;
 	int y = threadIdx.y;
-	int inf = threadIdx.z;
-	int outf = blockIdx.x;
-	for (int u = 0; u < 3; u++){
-		for (int v = 0; v < 3; v++) {
-			out[x + y * width + outf * width * height] += in[(x - 1 + u) + (y - 1 + v) * width + inf * width * height] * kernel[u + v * 3 + inf * 9 + outf * 9 * infeat];
+	int outIdx = x + 1 + (y + 1) * width + outf * width * height;
+	for (int inf = 0; inf < infeat; inf++) {
+		for (int u = 0; u < 3; u++){
+			for (int v = 0; v < 3; v++) {
+				int inIdx = (x + u) + (y + v) * width + inf * width * height;
+				out[outIdx] += in[inIdx] * kernel[u + v * 3 + inf * 9 + outf * 9 * infeat];
+			}
 		}
-	}					
+	}		
 }
 
+
 int main(void) {
-	int N = 5;
-	int M = 5;
+	int N = 4;
+	int M = 4;
 	int infeat = 2;
 	int outfeat = 2;
 	int kernelh = 3;
 	int kernelw = 3;
 
-	float *x;
-	float *y;
-	float *kernel;
-
+	float *x, *y, *kernel;
+	
 	// initialize x and y arrays on the host
 	// Allocate Unified Memory – accessible from CPU or GPU
-	cudaMallocManaged(&x, N*M*infeat*sizeof(float));
-	cudaMallocManaged(&y, N*M*infeat*sizeof(float));
-	cudaMallocManaged(&kernel, 9*sizeof(float));
+	cudaMallocManaged(&x, N * M * infeat * sizeof(float));
+	cudaMallocManaged(&y, N * M * outfeat * sizeof(float));
+	cudaMallocManaged(&kernel, kernelh * kernelw * sizeof(float));
 
 	for (int i = 0; i < infeat * N * M; i++) {
 		x[i] = 1.0f;
 	}
 
 	for (int i = 0; i < outfeat * N * M; i++) {
-		x[i] = 1.0f;
+		y[i] = 0.0f;
 	}
 
 	for (int i = 0; i < infeat * outfeat * kernelw * kernelh; i++) {
 		kernel[i] = 1.0f;
 	}
 
+
 	// Run kernel on 1M elements on the CPU
-	conv<<<outfeat, dim3(N, M, infeat)>>>(y, x, kernel, N, M, infeat, outfeat);
+	conv <<<outfeat, dim3(N - 2, M - 2)>>> (y, x, kernel, N, M, infeat, outfeat);
 
 	cudaDeviceSynchronize();
 
@@ -54,16 +60,21 @@ int main(void) {
 	for (int i = 1; i < N - 1; i++) {
 		for (int j = 1; j < M - 1; j++) {
 			for (int o = 0; o < outfeat; o++) {
-				maxError = fmax(maxError, fabs(y[i + j * N + o * N * M]-18.0f));
+				maxError = fmax(maxError, fabs(y[i + j * N + o * N * M] - 18.0f));
 			}
 		}
 	}
-	std::cout << "Max error: " << maxError << std::endl;
+	cout << "Max error: " << maxError << endl;
 
-	for (int i = 0; i < N * M * outfeat; i++) {
-		std::cout << y[i] << std::endl;
+	for (int k = 0; k < outfeat; k ++) {
+		for (int j = 0; j < M; j++) {
+			for (int i = 0; i < N; i++) {
+				cout << y[i + j * N + k * N * M] << " ";
+			}
+			cout << endl;
+		}
+		cout << endl;
 	}
-
 
 	// Free memory
 	cudaFree(x);
