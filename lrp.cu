@@ -33,6 +33,7 @@ __global__ void lrp(float *relevance, float *out, float *kernel, int width, int 
 			}	
 		}		
 	}
+	for (int 
 }
 
 
