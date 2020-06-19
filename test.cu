@@ -1,15 +1,37 @@
 #include <stdio.h>
 
 
-__global__ void add(int *d, int n)
+__global__ void v_m_mul(int *in, int *out, int *weights, int n, int m)
+{
+  __shared__ int s;
+  int b = blockIdx.x;
+  int t = threadIdx.x;
+  int mul;
+  __syncthreads();
+  mul = in[t] * weights[b * n +];
+  atomicAdd(&out[b], mul);
+}
+
+
+void v_m_mul_gm(int *in, int *out, int *weights, int n, int m)
+{
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < m; j++) {
+      out[j] += in[i] * weights[j * n + i];
+    }
+  }
+}
+
+
+__global__ void add(int *in, int n)
 {
   __shared__ int s;
   int t = threadIdx.x;
   s = 0;
   __syncthreads();
-  atomicAdd(&s, d[t]);
+  atomicAdd(&s, in[t]);
   __syncthreads();
-  d[t] = s;
+  in[t] = s;
 }
 
 
@@ -28,15 +50,17 @@ void add_gm(int *in, int n)
 
 int main(void)
 {
-  const int n = 64;
+  const int n = 64, m = 4;
   int tmp;
-  int a[n], r[n], d[n];
+  int input[n], golden_answer[m], cuda_answer[m], weights[m*n];
   cudaError_t s;
   
   for (int i = 0; i < n; i++) {
     tmp = 1;
-    a[i] = tmp;
-    r[i] = tmp;
+    input[i] = tmp;
+    for (int j = 0; j < m; j++) {
+      weights[j * n + i] = tmp;
+    }
   }
 
   int *d_d;
