@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-__global__ void staticReverse(int *d, int n)
+
+__global__ void add(int *d, int n)
 {
   __shared__ int s[64];
   int t = threadIdx.x;
@@ -10,37 +11,31 @@ __global__ void staticReverse(int *d, int n)
   d[t] = s[tr];
 }
 
-__global__ void add(int *d, int n)
+
+void add_gm(int *in, int n)
 {
-  __shared__ int s[1];
-  int t = threadIdx.x;
-  s[0] = 0;
-  __syncthreads();
-  s[0] += d[t];
-  __syncthreads();
-  d[t] = s[0];
+  int tmp[64];
+  for (int i = 0; i < n; i++) {
+   tmp[i] = in[i];
+  }
+  for (int i = 0; i < n; i++) {
+   int tr = n - i - 1;
+   in[i] = tmp[tr];
+  }
 }
 
-__global__ void dynamicReverse(int *d, int n)
-{
-  extern __shared__ int s[];
-  int t = threadIdx.x;
-  int tr = n-t-1;
-  s[t] = d[t];
-  __syncthreads();
-  d[t] = s[tr];
-}
 
 int main(void)
 {
   const int n = 64;
+  int tmp;
   int a[n], r[n], d[n];
   cudaError_t s;
   
   for (int i = 0; i < n; i++) {
-    a[i] = i;
-    r[i] = n-i-1;
-    d[i] = 0;
+    tmp = i;
+    a[i] = tmp;
+    r[i] = tmp;
   }
 
   int *d_d;
@@ -49,15 +44,13 @@ int main(void)
   // run version with static shared memory
   cudaMemcpy(d_d, a, n*sizeof(int), cudaMemcpyHostToDevice);
   add<<<1,n>>>(d_d, n);
+  add_gm(r, n);
   s = cudaMemcpy(d, d_d, n*sizeof(int), cudaMemcpyDeviceToHost);
   printf("%s", cudaGetErrorName(s));
-  for (int i = 0; i < n; i++) 
-    if (d[i] != r[i]) printf("Error: d[%d]!=r[%d] (%d, %d)\n", i, i, d[i], r[i]);
-  
-  // run dynamic shared memory version
-  cudaMemcpy(d_d, a, n*sizeof(int), cudaMemcpyHostToDevice);
-  dynamicReverse<<<1,n,n*sizeof(int)>>>(d_d, n);
-  cudaMemcpy(d, d_d, n * sizeof(int), cudaMemcpyDeviceToHost);
-  for (int i = 0; i < n; i++) 
-    if (d[i] != r[i]) printf("Error: d[%d]!=r[%d] (%d, %d)\n", i, i, d[i], r[i]);
+  for (int i = 0; i < n; i++) {
+    if (d[i] != r[i]) {
+      printf("Error: d[%d]!=r[%d] (%d, %d)\n", i, i, d[i], r[i]);
+    }
+    printf("%d\n", d[i]);
+  }
 }
