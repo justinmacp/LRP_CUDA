@@ -3,24 +3,25 @@
 
 __global__ void add(int *d, int n)
 {
-  __shared__ int s[64];
+  __shared__ int s;
   int t = threadIdx.x;
-  int tr = n-t-1;
-  s[t] = d[t];
+  s = 0;
   __syncthreads();
-  d[t] = s[tr];
+  atomicAdd(&s, d[t]);
+  __syncthreads();
+  d[t] = s;
 }
 
 
 void add_gm(int *in, int n)
 {
-  int tmp[64];
+  int tmp;
+  tmp = 0;
   for (int i = 0; i < n; i++) {
-   tmp[i] = in[i];
+   tmp += in[i];
   }
   for (int i = 0; i < n; i++) {
-   int tr = n - i - 1;
-   in[i] = tmp[tr];
+   in[i] = tmp;
   }
 }
 
@@ -33,7 +34,7 @@ int main(void)
   cudaError_t s;
   
   for (int i = 0; i < n; i++) {
-    tmp = i;
+    tmp = 1;
     a[i] = tmp;
     r[i] = tmp;
   }
