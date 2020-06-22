@@ -1,6 +1,34 @@
 #include <stdio.h>
 
 
+__global__ void lrp_perc(int *in, int *out, int *relevance, int *weights, int *activations, int n, int m)
+{
+  int b = blockIdx.x;
+  int t = threadIdx.x;
+  __syncthreads();
+  int mul = in[t] * weights[b * n + t];
+  atomicAdd(&out[b], mul);
+}
+
+
+void lrp_perc_gm(int *in, int *out, int *relevance, int *weights, int *activations, int n, int m)
+{
+  int activation_sum[m];
+  int activations [m * n];
+  for (int j = 0; j < m; j++) {
+    for (int i_prime = 0; i_prime < n; i_prime++) {
+      activations[j * n + i_prime] = in[i_prime] * weights[j * n + i_prime];
+      activation_sum[j] += activations[j * n + i_prime];
+    }
+  }
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < m; j++) {
+      relevance[i] += (activations[j * n + i] * out[j]) / activation_sum[j]
+    }
+  }
+}
+
+
 __global__ void v_m_mul(int *in, int *out, int *weights, int n, int m)
 {
   int b = blockIdx.x;
