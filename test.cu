@@ -3,12 +3,10 @@
 
 __global__ void v_m_mul(int *in, int *out, int *weights, int n, int m)
 {
-  __shared__ int s;
   int b = blockIdx.x;
   int t = threadIdx.x;
-  int mul;
   __syncthreads();
-  mul = in[t] * weights[b * n +];
+  int mul = in[t] * weights[b * n + t];
   atomicAdd(&out[b], mul);
 }
 
@@ -62,20 +60,30 @@ int main(void)
       weights[j * n + i] = tmp;
     }
   }
+  for (int i = 0; i < m; i++) {
+    golden_answer[i] = 0;
+    cuda_answer[i] = 0;
+  }
 
-  int *d_d;
-  cudaMalloc(&d_d, n * sizeof(int)); 
+  int *input_, *weights_, *output_;
+  cudaMalloc(&input_, n * sizeof(int)); 
+  cudaMalloc(&weights_, m * n * sizeof(int)); 
+  cudaMalloc(&output_, m * sizeof(int)); 
   
   // run version with static shared memory
-  cudaMemcpy(d_d, a, n*sizeof(int), cudaMemcpyHostToDevice);
-  add<<<1,n>>>(d_d, n);
-  add_gm(r, n);
-  s = cudaMemcpy(d, d_d, n*sizeof(int), cudaMemcpyDeviceToHost);
-  printf("%s", cudaGetErrorName(s));
-  for (int i = 0; i < n; i++) {
-    if (d[i] != r[i]) {
-      printf("Error: d[%d]!=r[%d] (%d, %d)\n", i, i, d[i], r[i]);
+  cudaMemcpy(input_, input, n * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(weights_, weights, n * m *sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemset(output_, 0, m * sizeof(int));
+  v_m_mul<<<m,n>>>(input_, output_, weights_, n, m);
+  v_m_mul_gm(input, golden_answer, weights, n, m);
+  s = cudaDeviceSynchronize();
+  printf("%s\n", cudaGetErrorName(s));
+  s = cudaMemcpy(cuda_answer, output_, m * sizeof(int), cudaMemcpyDeviceToHost);
+  printf("%s\n", cudaGetErrorName(s));
+  for (int i = 0; i < m; i++) {
+    if (golden_answer[i] != cuda_answer[i]) {
+      printf("Error: golden_answer[%d]!=cuda_answer[%d] (%d, %d)\n", i, i, golden_answer[i], cuda_answer[i]);
     }
-    printf("%d\n", d[i]);
+    printf("%d\n", cuda_answer[i]);
   }
 }
