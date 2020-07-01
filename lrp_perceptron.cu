@@ -8,7 +8,7 @@ using namespace std;
 
 // function to convolve the elements of two arrays
 __global__ void dense_relu(float *out, float *in, float *weights, int infeats) {
-	extern __shared__ float outTemp[];
+	__shared__ float outTemp[CLASSES];
 	int batch = blockIdx.x;
 	int outfeat = threadIdx.y;
 	int infeat = threadIdx.x;
@@ -16,14 +16,15 @@ __global__ void dense_relu(float *out, float *in, float *weights, int infeats) {
 	int outId = batch * CLASSES + outfeat;
 	int wId = batch * CLASSES * infeats + outfeat * infeats + infeat;
 	int inId = batch * infeats + infeat;
+	outTemp[outIndivId] = 0;
 	__syncthreads();
 	outTemp[outIndivId] += in[inId] * weights[wId];
 	__syncthreads();
 	out[outId] = outTemp[outIndivId];
 	__syncthreads();
 	printf("%d %d %d %f %f\n", batch, outfeat, infeat, in[inId] * weights[wId], outTemp[outId]);
-	if (infeat == 0 && out[outId] < 0.0f) {
-		out[outId] = 0.0f;
+	if (infeat == 0 && out[outId] < 0) {
+		out[outId] = 0;
 	}
 }
 
@@ -62,7 +63,7 @@ int main(void) {
 	cout << cudaGetErrorName(s) << endl;
 
 	// Run kernel on 1M elements on the CPU
-	dense_relu <<<batchSize, dim3(inFeatures, CLASSES), CLASSES * sizeof(float)>>> (output, input, weights, inFeatures);
+	dense_relu <<<batchSize, dim3(inFeatures, CLASSES)>>> (output, input, weights, inFeatures);
 
 	s = cudaDeviceSynchronize();
 	cout << cudaGetErrorName(s) << endl;
